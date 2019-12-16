@@ -1,32 +1,40 @@
 
-# -- ---------------------------------------------------------------------------------------------------------------- #
-# -- proyecto:
-# -- codigo:
-# -- repositorio:
-# -- ---------------------------------------------------------------------------------------------------------------- #
+# -- ------------------------------------------------------------------------------------------------------ #
+# -- proyecto: Analisis de datos de reconocimiento facial para medición de pruebas UX
+# -- codigo: ux_recognition.py
+# -- autor: Francisco ME
+# -- licencia: MIT
+# -- repositorio: https://github.com/ITERALABS/ux_recognition
+# -- ------------------------------------------------------------------------------------------------------ #
 
-# cargar librerias
-import pandas as pd
-import numpy as np
-import time
-from itertools import groupby
-from operator import itemgetter
-from pandas import ExcelWriter
+import pandas as pd                                       # Operaciones con DataFrames
+import numpy as np                                        # Operaciones con arreglos
+import time                                               # Operaciones con unidades de tiempo
+from itertools import groupby                             # Funcion de agrupamiento iterativo
+from operator import itemgetter                           # Funcion de obtencion de items en objetos
+from pandas import ExcelWriter                            # Escribir hojas de excel
 
-# crear cuadro de datos
+# -- Etapa inicial: Crear DataFrame para almacenar datos
+# nombre de archivo con los datos
+archivo = 'imotion_data.xlsx'
+# Cantidad de hojas a leer
+hojas_n = 12
+# umbral de medicion (0-1)
 umbral = 0.80
+# usuarios que realizaron la prueba
 usuarios = 12
+# emociones que mide el software con su modulo de reconocimiento facial
 emociones = ['engagement', 'joy', 'anger', 'surprise', 'fear', 'contempt', 'sadness', 'disgust']
-datos_ux = pd.DataFrame({'usuario': list(np.repeat(['usuario_' + str(i+1) for i in range(0, usuarios)], len(emociones))),
-                         'emocion': list([emociones[i] for i in range(0, len(emociones))])*usuarios})
+# data frame
+lista_u = list(np.repeat(['usuario_' + str(i+1) for i in range(0, usuarios)], len(emociones)))
+lista_e = list([emociones[i] for i in range(0, len(emociones))])*usuarios
+datos_ux = pd.DataFrame({'usuario': lista_u, 'emocion': lista_e})
 
-# datos_ux = pd.concat([datos_ux, pd.DataFrame(columns=['ocurrencia_' + str(i) for i in range(1, 21)])], axis=1)
-
-for hojas in range(1, 13):
-    hojas = 1
-    print(hojas)
+# -- Etapa de procesamiento: Leer una hoja de datos, procesarlos y dejarlos listos para escribir excel final
+for hojas in range(1, hojas_n+1):
+    print('procesando datos de hoja: ' + str(hojas))
     # cargar datos
-    datos = pd.read_excel('datos/imotion_data.xlsx', sheet_name='Sujeto_' + str(hojas))
+    datos = pd.read_excel('datos/' + archivo, sheet_name='Sujeto_' + str(hojas))
 
     # crear columa timestamp_v
     datos['Timestamp'] = [time.strftime('%M:%S', time.gmtime(i)) for i in datos['Timestamp']/30]
@@ -45,9 +53,9 @@ for hojas in range(1, 13):
     em = 1
     mensajes = list()
 
-    for l in range(0, len(emociones)):
+    for emocion in range(0, len(emociones)):
         # localizar primer valor que es > umbral
-        data = list(np.where(datos_norm[emociones[l]] >= umbral)[0])
+        data = list(np.where(datos_norm[emociones[emocion]] >= umbral)[0])
 
         # localizar los rangos de tiempos donde se presentaron mediciones por encima del umbral
         rangos = []
@@ -56,16 +64,20 @@ for hojas in range(1, 13):
             group = list(map(int, group))
             rangos.append((group[0], group[-1]))
 
+            # Construccion de parentesis con inicio y fin de periodo
             mensaje = [str('(' + str(datos_norm['timestamp'][rangos[i][0]]) + ', ' +
                        str(datos_norm['timestamp'][rangos[i][1]]) + ')') for i in range(0, len(rangos))]
 
+        # Lista final de momentos de reconocimiento de emocion
         mensajes.append(mensaje)
 
+    # enumeracion de ocurrencias para cada emocion
     o = 8*(hojas-1)
     for m in range(0, len(mensajes)):
         for n in range(1, len(mensajes[m])):
             datos_ux.loc[m+o, 'ocurrencia_' + str(n)] = mensajes[m][n]
 
-writer = ExcelWriter('data_ux.xlsx')
+# -- escribir en excel DataFrame final
+writer = ExcelWriter('data_ux_p.xlsx')
 datos_ux.to_excel(writer, 'datos', index=False)
 writer.save()
